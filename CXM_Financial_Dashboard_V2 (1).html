@@ -4535,9 +4535,10 @@ async function exportPresAsPPTX() {
         logging: false,
         imageTimeout: 8000,
         onclone: (doc) => {
-          // Ensure fonts and canvases are ready in the cloned doc
           const canvases = doc.querySelectorAll('canvas');
           canvases.forEach(c => { c.style.imageRendering = 'auto'; });
+          // Hide auto-generate buttons from exported slides
+          doc.querySelectorAll('.ps-ai-btn').forEach(b => { b.style.display = 'none'; });
         }
       });
 
@@ -4672,11 +4673,12 @@ function _generateTakeawaysLocal(ek,mA,mB,lA,lB){
     lines.push(`- ${cat.name}`);
     if(movers.length){
       movers.forEach(m=>{
-        const tag=(ek==='group'&&m.entity)?(ENTITY_TAGS[m.entity]||entTag):entTag;
-        lines.push(`  • ${shortMon} – ${m.key} – ${fmtK(m.delta)} (${tag})`);
+        const tag=(ek==='group'&&m.entity)?(ENTITY_TAGS[m.entity]||entTag):null;
+        lines.push(`  • ${shortMon} – ${m.key} – ${fmtK(m.delta)}`+(tag?` (${tag})`:''));
       });
     }else{
-      lines.push(`  • ${shortMon} – Net change – ${fmtK(cat.delta)} (${entTag})`);
+      const tag=ek==='group'?` (${entTag})`:'';
+      lines.push(`  • ${shortMon} – Net change – ${fmtK(cat.delta)}${tag}`);
     }
   });
   return lines.join('\n');
@@ -4692,7 +4694,17 @@ function autoGenerateTakeaways(idx){
   try{
     const def=SLIDE_DEFS[idx];
     const ek=def.ek||_presSkToEk(def.sk||'');
-    const mA=PRES_STATE.monthA,mB=PRES_STATE.monthB;
+    let mA=PRES_STATE.monthA,mB=PRES_STATE.monthB;
+    // For YoY slides, compare current month vs same month prior year
+    if(def.type==='yoy'){
+      const lB=MONTH_NAMES_DISPLAY[mB]||'';
+      if(lB.includes(' ')){
+        const [mon,yr]=lB.split(' ');
+        const prevLabel=mon+' '+String(parseInt(yr)-1);
+        const mPrev=MONTH_NAMES_DISPLAY.indexOf(prevLabel);
+        if(mPrev>=0)mA=mPrev;
+      }
+    }
     const lA=MONTH_NAMES_DISPLAY[mA]||'—',lB=MONTH_NAMES_DISPLAY[mB]||'—';
     const text=_generateTakeawaysLocal(ek,mA,mB,lA,lB);
     _aiPending[idx]=text;
