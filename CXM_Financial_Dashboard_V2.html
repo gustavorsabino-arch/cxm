@@ -296,6 +296,14 @@ footer{text-align:center;font:.61rem/1 var(--mono);color:var(--muted);padding:18
 .ps-ta-label{font:.54rem/1 var(--mono);font-weight:700;color:#9aaabe;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
 .ps-ta-input{flex:1;resize:none;border:1.5px solid #dde8f0;border-radius:7px;padding:9px 11px;font-size:10.5px;color:#1a2a3a;line-height:1.75;background:#f8fafd;font-family:'DM Sans',sans-serif;min-height:0;transition:border-color .15s;}
 .ps-ta-input:focus{outline:none;border-color:#6ab04c;box-shadow:0 0 0 3px rgba(106,176,76,.1);}
+.ps-ta-render{flex:1;border:1.5px solid #dde8f0;border-radius:7px;padding:9px 11px;font-size:10.5px;line-height:1.65;background:#f8fafd;cursor:text;overflow-y:auto;min-height:0;font-family:'DM Sans',sans-serif;}
+.ps-ta-render:hover{border-color:#b0c4d8;}
+.ps-ta-render .ta-cat{font-weight:700;color:#0d1f3c;margin-top:6px;font-size:11px;letter-spacing:-.01em;}
+.ps-ta-render .ta-cat:first-child{margin-top:0;}
+.ps-ta-render .ta-bullet{padding-left:13px;color:#2c3e50;position:relative;}
+.ps-ta-render .ta-bullet::before{content:'•';position:absolute;left:2px;color:#6ab04c;font-weight:700;}
+.ps-ta-render .ta-empty{color:#bbc8d4;font-style:italic;}
+.ps-ta-input.ps-ta-edit{display:flex!important;}
 
 /* YoY layout — table + takeaways */
 .ps-yoy-body{flex:1;display:flex;overflow:hidden;min-height:0;}
@@ -2921,7 +2929,8 @@ function _presRenderSlide(idx) {
             <div class="ps-col-divider" onmousedown="initColResize(event)"></div>
             <div class="ps-resizable-ta ps-ta-panel">
               <div class="ps-ta-toolbar"><div class="ps-ta-label">Key Takeaways</div><button class="ps-ai-btn" id="ai-btn-${idx}">✨ Auto-generate</button></div>
-              <textarea class="ps-ta-input" id="ta-${idx}" placeholder="Add notes here…" oninput="PRES_STATE.takeaways[${idx}]=this.value;_debouncedSaveTakeaways()">${tk}</textarea>
+              <div class="ps-ta-render" id="ta-render-${idx}" onclick="_taEditMode(${idx})">${_renderTakeawaysHtml(tk)}</div>
+              <textarea class="ps-ta-input" id="ta-${idx}" placeholder="Add notes here…" style="display:none" oninput="PRES_STATE.takeaways[${idx}]=this.value;_debouncedSaveTakeaways()">${tk}</textarea>
             </div>
           </div>
         </div>
@@ -2952,7 +2961,8 @@ function _presRenderSlide(idx) {
             <div class="ps-col-divider" onmousedown="initColResize(event)"></div>
             <div class="ps-resizable-ta ps-ta-panel">
               <div class="ps-ta-toolbar"><div class="ps-ta-label">Key Takeaways</div><button class="ps-ai-btn" id="ai-btn-${idx}">✨ Auto-generate</button></div>
-              <textarea class="ps-ta-input" id="ta-${idx}" placeholder="Add notes here…" oninput="PRES_STATE.takeaways[${idx}]=this.value;_debouncedSaveTakeaways()">${tk}</textarea>
+              <div class="ps-ta-render" id="ta-render-${idx}" onclick="_taEditMode(${idx})">${_renderTakeawaysHtml(tk)}</div>
+              <textarea class="ps-ta-input" id="ta-${idx}" placeholder="Add notes here…" style="display:none" oninput="PRES_STATE.takeaways[${idx}]=this.value;_debouncedSaveTakeaways()">${tk}</textarea>
             </div>
           </div>
         </div>
@@ -4597,20 +4607,22 @@ function _generateTakeawaysLocal(ek,mA,mB,lA,lB){
   const skArr=srcKeysFor(ek);
   const plB=_computePL(ek,mB),plA=_computePL(ek,mA);
 
+  // Cost categories only — no Revenue, no Other Income/Expenses
+  // useAcct=true → group by sub-account leaf (Compensation, G&A: "Salary","Commission","Office Rent"…)
+  // useAcct=false → group by vendor name (Tech, PSP, Marketing, ProfSvc)
   const cats=[
-    {name:'Revenue',          grp:null,             vA:plA.netRev,  vB:plB.netRev},
-    {name:'Tech Fees',        grp:'Tech/Subs',       vA:getGrpVal('Tech/Subs',skArr,mA),  vB:getGrpVal('Tech/Subs',skArr,mB)},
-    {name:'PSP Fees',         grp:'PSP Fees',        vA:getGrpVal('PSP Fees',skArr,mA),   vB:getGrpVal('PSP Fees',skArr,mB)},
-    {name:'Compensation',     grp:'Compensation',    vA:plA.comp,    vB:plB.comp},
-    {name:'Marketing',        grp:'Marketing',       vA:plA.mkt,     vB:plB.mkt},
-    {name:'Professional Svc', grp:'Professional Svc',vA:plA.profSvc, vB:plB.profSvc},
-    {name:'G&A',              grp:'G&A',             vA:plA.ga,      vB:plB.ga},
-  ].map(c=>({...c,delta:c.vB-c.vA}))
-   .filter(c=>Math.abs(c.delta)>=5000)
+    {name:'Tech Fees',        grp:'Tech/Subs',       vA:getGrpVal('Tech/Subs',skArr,mA),  vB:getGrpVal('Tech/Subs',skArr,mB),  useAcct:false},
+    {name:'PSP Fees',         grp:'PSP Fees',        vA:getGrpVal('PSP Fees',skArr,mA),   vB:getGrpVal('PSP Fees',skArr,mB),   useAcct:false},
+    {name:'Compensation',     grp:'Compensation',    vA:plA.comp,    vB:plB.comp,          useAcct:true},
+    {name:'Marketing',        grp:'Marketing',       vA:plA.mkt,     vB:plB.mkt,           useAcct:false},
+    {name:'Professional Svc', grp:'Professional Svc',vA:plA.profSvc, vB:plB.profSvc,       useAcct:false},
+    {name:'G&A',              grp:'G&A',             vA:plA.ga,      vB:plB.ga,            useAcct:true},
+  ].map(c=>({...c,delta:c.vB-c.vA,pct:c.vA!==0?(c.vB-c.vA)/Math.abs(c.vA)*100:100}))
+   .filter(c=>Math.abs(c.delta)>=5000 && Math.abs(c.pct)>=5)
    .sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta))
    .slice(0,6);
 
-  if(!cats.length)return '(No significant MoM movements — all deltas below $5k)';
+  if(!cats.length)return '(No significant MoM movements)';
 
   const getTxns=mi=>TRANSACTIONS.filter(t=>{
     if(ekName&&t.entity!==ekName)return false;
@@ -4618,14 +4630,27 @@ function _generateTakeawaysLocal(ek,mA,mB,lA,lB){
   });
   const txnsB=getTxns(mB),txnsA=getTxns(mA);
 
-  const getMovers=grp=>{
+  const getMovers=(grp,useAcct)=>{
     if(!grp)return[];
     const tB=txnsB.filter(t=>txnMatchesGroup(t,grp));
     const tA=txnsA.filter(t=>txnMatchesGroup(t,grp));
+    const getKey=t=>{
+      if(useAcct){
+        // Use leaf of account hierarchy: "Expenses:Compensation:Commission" → "Commission"
+        const parts=(t.account_name||t.account||'').split(':');
+        return parts[parts.length-1].trim()||'Other';
+      }else{
+        // Use vendor name, fall back to account leaf
+        const v=(t.vendor||t.memo||'').trim();
+        if(v)return v.substring(0,40);
+        const parts=(t.account_name||t.account||'').split(':');
+        return parts[parts.length-1].trim()||'Other';
+      }
+    };
     const agg=txns=>{
       const m={};
       txns.forEach(t=>{
-        const k=((t.vendor||t.memo||'').trim()||(t.account_name||t.account||'').split(':').pop().trim()||'Unknown').substring(0,40);
+        const k=getKey(t);
         if(!m[k])m[k]={total:0,entity:t.entity||''};
         m[k].total+=(t.amount||0);
       });
@@ -4643,7 +4668,7 @@ function _generateTakeawaysLocal(ek,mA,mB,lA,lB){
 
   const lines=[];
   cats.forEach(cat=>{
-    const movers=getMovers(cat.grp);
+    const movers=getMovers(cat.grp,cat.useAcct);
     lines.push(`- ${cat.name}`);
     if(movers.length){
       movers.forEach(m=>{
@@ -4733,6 +4758,7 @@ function _showActionDialog(idx,text){
 function _applyTakeaway(idx,text,mode){
   _closeAIDialogs();
   const ta=document.getElementById('ta-'+idx);
+  const render=document.getElementById('ta-render-'+idx);
   let newVal;
   if(mode==='replace'||!(PRES_STATE.takeaways[idx]||'').trim()){
     newVal=text;
@@ -4741,9 +4767,36 @@ function _applyTakeaway(idx,text,mode){
   }
   PRES_STATE.takeaways[idx]=newVal;
   if(ta)ta.value=newVal;
+  if(render)render.innerHTML=_renderTakeawaysHtml(newVal);
   _debouncedSaveTakeaways();
 }
 
+function _renderTakeawaysHtml(text){
+  if(!text||!text.trim())return '<span class="ta-empty">Click to add notes…</span>';
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  return text.split('\n').map(line=>{
+    if(line.match(/^[-–]\s+\S/))
+      return `<div class="ta-cat">${esc(line.replace(/^[-–]\s+/,''))}</div>`;
+    if(line.match(/^\s+[•·]\s+/))
+      return `<div class="ta-bullet">${esc(line.replace(/^\s+[•·]\s+/,''))}</div>`;
+    if(line.trim()==='') return '<div style="height:3px"></div>';
+    return `<div style="color:#2c3e50">${esc(line)}</div>`;
+  }).join('');
+}
+
+function _taEditMode(idx){
+  const render=document.getElementById('ta-render-'+idx);
+  const ta=document.getElementById('ta-'+idx);
+  if(!render||!ta)return;
+  render.style.display='none';
+  ta.style.display='flex';
+  ta.focus();
+  ta.addEventListener('blur',function(){
+    render.innerHTML=_renderTakeawaysHtml(ta.value);
+    render.style.display='';
+    ta.style.display='none';
+  },{once:true});
+}
 
 // ── Delegated AI button handler (capture phase, survives slide re-renders) ──
 document.addEventListener('click', function(e) {
