@@ -366,6 +366,25 @@ footer{text-align:center;font:.61rem/1 var(--mono);color:var(--muted);padding:18
 .ps-cov-date{font-size:16px;color:rgba(255,255,255,.4);font-style:italic;}
 .ps-cov-conf{margin-top:36px;font:.5rem/1 var(--mono);color:rgba(255,255,255,.15);letter-spacing:.22em;text-transform:uppercase;}
 .ps-cov-logo{margin-top:auto;padding-top:24px;font:.62rem/1 var(--mono);font-weight:800;color:rgba(255,255,255,.1);letter-spacing:.12em;}
+/* ── AI Auto-generate Takeaways ── */
+.ps-ta-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;}
+.ps-ai-btn{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:5px;border:1px solid rgba(106,176,76,.4);background:rgba(106,176,76,.07);color:#3d8b2e;font:.58rem/1 var(--mono);font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0;letter-spacing:.02em;}
+.ps-ai-btn:hover:not(:disabled){background:rgba(106,176,76,.18);border-color:#6ab04c;}.ps-ai-btn:disabled{opacity:.45;cursor:not-allowed;}
+.ps-ai-btn .ai-spin{display:inline-block;width:9px;height:9px;border:1.5px solid rgba(61,139,46,.25);border-top-color:#3d8b2e;border-radius:50%;animation:ai-spin .7s linear infinite;}
+@keyframes ai-spin{to{transform:rotate(360deg);}}
+.ai-dialog{position:absolute;bottom:calc(100% + 4px);right:0;background:#fff;border:1px solid #cdd6e5;border-radius:9px;box-shadow:0 4px 22px rgba(13,31,60,.16);padding:13px 15px;min-width:230px;max-width:300px;z-index:500;}
+.ai-dialog-title{font:.63rem/1 var(--mono);font-weight:700;color:#0d1f3c;margin-bottom:7px;}
+.ai-dialog-msg{font:.58rem/1.45 var(--mono);color:#6b87a4;margin-top:5px;}
+.ai-dialog-row{display:flex;align-items:center;gap:6px;margin-top:8px;}
+.ai-dialog input[type=password]{flex:1;padding:5px 8px;border:1px solid #cdd6e5;border-radius:5px;font:.63rem/1 var(--mono);color:#0d1f3c;background:#f3f6fb;outline:none;}.ai-dialog input[type=password]:focus{border-color:#6ab04c;}
+.ai-dbtn{padding:5px 10px;border-radius:5px;font:.62rem/1 var(--mono);font-weight:600;cursor:pointer;white-space:nowrap;border:none;}
+.ai-dbtn.ok{background:#6ab04c;color:#fff;}.ai-dbtn.ok:hover{background:#5a9940;}
+.ai-dbtn.replace{background:#e07428;color:#fff;}.ai-dbtn.replace:hover{background:#c96420;}
+.ai-dbtn.append{background:#00a878;color:#fff;}.ai-dbtn.append:hover{background:#009a6e;}
+.ai-dbtn.cancel{background:transparent;border:1px solid #cdd6e5 !important;color:#6b87a4;}.ai-dbtn.cancel:hover{border-color:#c0392b !important;color:#c0392b;}
+.ai-action-btns{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;}
+.ai-action-btns .ai-dbtn{flex:1;text-align:center;}
+.ps-ta-panel{position:relative;}
 </style>
 </head>
 <body>
@@ -2902,8 +2921,8 @@ function _presRenderSlide(idx) {
             <div class="ps-resizable-main ps-pl-scroll" id="ps-main-${idx}" style="width:var(--ps-col-w,68%)">${tbl}</div>
             <div class="ps-col-divider" onmousedown="initColResize(event)"></div>
             <div class="ps-resizable-ta ps-ta-panel">
-              <div class="ps-ta-label">Key Takeaways</div>
-              <textarea class="ps-ta-input" placeholder="Add notes here…" oninput="PRES_STATE.takeaways[${idx}]=this.value;_debouncedSaveTakeaways()">${tk}</textarea>
+              <div class="ps-ta-toolbar"><div class="ps-ta-label">Key Takeaways</div><button class="ps-ai-btn" id="ai-btn-${idx}" onclick="autoGenerateTakeaways(${idx})">✨ Auto-generate</button></div>
+              <textarea class="ps-ta-input" id="ta-${idx}" placeholder="Add notes here…" oninput="PRES_STATE.takeaways[${idx}]=this.value;_debouncedSaveTakeaways()">${tk}</textarea>
             </div>
           </div>
         </div>
@@ -2933,8 +2952,8 @@ function _presRenderSlide(idx) {
             <div class="ps-resizable-main ps-yoy-scroll" id="ps-main-${idx}" style="width:var(--ps-col-w,68%)">${tbl}</div>
             <div class="ps-col-divider" onmousedown="initColResize(event)"></div>
             <div class="ps-resizable-ta ps-ta-panel">
-              <div class="ps-ta-label">Key Takeaways</div>
-              <textarea class="ps-ta-input" placeholder="Add notes here…" oninput="PRES_STATE.takeaways[${idx}]=this.value;_debouncedSaveTakeaways()">${tk}</textarea>
+              <div class="ps-ta-toolbar"><div class="ps-ta-label">Key Takeaways</div><button class="ps-ai-btn" id="ai-btn-${idx}" onclick="autoGenerateTakeaways(${idx})">✨ Auto-generate</button></div>
+              <textarea class="ps-ta-input" id="ta-${idx}" placeholder="Add notes here…" oninput="PRES_STATE.takeaways[${idx}]=this.value;_debouncedSaveTakeaways()">${tk}</textarea>
             </div>
           </div>
         </div>
@@ -4551,6 +4570,243 @@ async function exportPresAsPPTX() {
     presGoTo(savedIdx);
 
     document.body.removeChild(overlay);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// AI AUTO-GENERATE TAKEAWAYS
+// ═══════════════════════════════════════════════════
+
+async function _getAnthropicKey(){try{return await _dbGet('anthropicKey');}catch(e){return null;}}
+async function _saveAnthropicKey(k){try{await _dbPut('anthropicKey',k);}catch(e){}}
+
+function _closeAIDialogs(){document.querySelectorAll('.ai-dialog').forEach(d=>d.remove());}
+
+function _showKeyDialog(idx){
+  _closeAIDialogs();
+  const btn=document.getElementById('ai-btn-'+idx);
+  if(!btn)return;
+  const panel=btn.closest('.ps-ta-panel');
+  if(!panel)return;
+  const d=document.createElement('div');
+  d.className='ai-dialog';d.id='ai-dialog-'+idx;
+  d.innerHTML=`<div class="ai-dialog-title">Anthropic API Key</div>
+    <div class="ai-dialog-msg">Enter your key to enable AI-generated takeaways. Stored locally in your browser.</div>
+    <div class="ai-dialog-row">
+      <input type="password" id="ai-key-inp-${idx}" placeholder="sk-ant-..." autocomplete="off">
+      <button class="ai-dbtn ok" onclick="_confirmAIKey(${idx})">Save</button>
+      <button class="ai-dbtn cancel" onclick="_closeAIDialogs()">✕</button>
+    </div>`;
+  panel.appendChild(d);
+  setTimeout(()=>{
+    const inp=document.getElementById('ai-key-inp-'+idx);
+    if(inp){inp.focus();inp.addEventListener('keydown',e=>{if(e.key==='Enter')_confirmAIKey(idx);});}
+  },30);
+}
+
+async function _confirmAIKey(idx){
+  const inp=document.getElementById('ai-key-inp-'+idx);
+  if(!inp)return;
+  const key=inp.value.trim();
+  if(!key)return;
+  await _saveAnthropicKey(key);
+  _closeAIDialogs();
+  autoGenerateTakeaways(idx);
+}
+
+let _aiPending={};
+
+function _showActionDialog(idx,text){
+  _closeAIDialogs();
+  const btn=document.getElementById('ai-btn-'+idx);
+  if(!btn)return;
+  const panel=btn.closest('.ps-ta-panel');
+  if(!panel)return;
+  const current=(PRES_STATE.takeaways[idx]||'').trim();
+  if(!current){_applyTakeaway(idx,text,'replace');return;}
+  const preview=text.split('\n').slice(0,4).join('\n')+(text.split('\n').length>4?'\n…':'');
+  const d=document.createElement('div');
+  d.className='ai-dialog';d.id='ai-dialog-'+idx;
+  d.innerHTML=`<div class="ai-dialog-title">Takeaways already exist</div>
+    <div class="ai-dialog-msg" style="white-space:pre-wrap;max-height:72px;overflow:hidden;color:#333;font-size:.55rem">${preview.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>
+    <div class="ai-dialog-msg">Replace existing content or append below?</div>
+    <div class="ai-action-btns">
+      <button class="ai-dbtn replace" onclick="_applyTakeaway(${idx},_aiPending[${idx}],'replace')">Replace</button>
+      <button class="ai-dbtn append" onclick="_applyTakeaway(${idx},_aiPending[${idx}],'append')">Append</button>
+      <button class="ai-dbtn cancel" onclick="_closeAIDialogs()">Cancel</button>
+    </div>`;
+  panel.appendChild(d);
+}
+
+function _applyTakeaway(idx,text,mode){
+  _closeAIDialogs();
+  const ta=document.getElementById('ta-'+idx);
+  let newVal;
+  if(mode==='replace'||!(PRES_STATE.takeaways[idx]||'').trim()){
+    newVal=text;
+  }else{
+    newVal=(PRES_STATE.takeaways[idx]||'').trimEnd()+'\n\n'+text;
+  }
+  PRES_STATE.takeaways[idx]=newVal;
+  if(ta)ta.value=newVal;
+  _debouncedSaveTakeaways();
+}
+
+function _buildAIPrompt(ek,mA,mB,lA,lB){
+  const fmt=v=>v===0?'$0':(v<0?'-$'+Math.abs(Math.round(v/100)/10)+'k':'+$'+(Math.round(v/100)/10)+'k');
+  const fmtAbs=v=>'$'+(Math.round(Math.abs(v)/100)/10)+'k';
+  const plB=_computePL(ek,mB),plA=_computePL(ek,mA);
+  const skArr=srcKeysFor(ek);
+  const entTagMap={group:'GROUP',trading:'CXMT',direct:'CXMD',prime:'CXMP',securities:'CXMS'};
+  const entTag=entTagMap[ek]||'CXM';
+  const entLabel={group:'CXM Group',trading:'CXM Trading',direct:'CXM Direct',prime:'CXM Prime',securities:'CXM Securities'}[ek]||'CXM Group';
+  const shortMon=(lB||'').split(' ')[0]||lB;
+
+  const cats=[
+    {n:'Revenue',         vA:plA.netRev,    vB:plB.netRev},
+    {n:'Tech Fees (COGS)',vA:getGrpVal('Tech/Subs',skArr,mA),vB:getGrpVal('Tech/Subs',skArr,mB)},
+    {n:'PSP Fees',        vA:getGrpVal('PSP Fees',skArr,mA), vB:getGrpVal('PSP Fees',skArr,mB)},
+    {n:'Compensation',    vA:plA.comp,      vB:plB.comp},
+    {n:'Marketing',       vA:plA.mkt,       vB:plB.mkt},
+    {n:'Professional Svc',vA:plA.profSvc,   vB:plB.profSvc},
+    {n:'G&A',             vA:plA.ga,        vB:plB.ga},
+    {n:'Net Income',      vA:plA.netProfit, vB:plB.netProfit},
+  ].map(c=>({...c,d:c.vB-c.vA}));
+
+  const summaryLines=cats.map(c=>{
+    const pct=c.vA!==0?' ('+(c.d/Math.abs(c.vA)*100).toFixed(0)+'% MoM)':'';
+    return `  ${c.n}: ${fmtAbs(c.vB)} | delta ${fmt(c.d)}${pct}`;
+  }).join('\n');
+
+  // Aggregate transactions by account for each month
+  const ekName=ek==='group'?null:(ENTITY_KEY[ek]||null);
+  const getTxns=mi=>TRANSACTIONS.filter(t=>{
+    if(ekName&&t.entity!==ekName)return false;
+    return txnInMonth(t,mi);
+  });
+  const txnsB=getTxns(mB),txnsA=getTxns(mA);
+
+  const aggAcc=txns=>{
+    const m={};
+    txns.forEach(t=>{
+      const acc=(t.account_name||t.account||'Unknown').split(':').pop().trim();
+      if(!m[acc])m[acc]={total:0,vendors:{}};
+      m[acc].total+=(t.amount||0);
+      const v=(t.vendor||t.memo||'').trim().substring(0,40);
+      if(v)m[acc].vendors[v]=(m[acc].vendors[v]||0)+(t.amount||0);
+    });
+    return m;
+  };
+  const accB=aggAcc(txnsB),accA=aggAcc(txnsA);
+  const allAccs=new Set([...Object.keys(accB),...Object.keys(accA)]);
+  const movers=[];
+  allAccs.forEach(acc=>{
+    const vB=(accB[acc]||{}).total||0,vA=(accA[acc]||{}).total||0,delta=vB-vA;
+    if(Math.abs(delta)>=5000)movers.push({acc,vA,vB,delta,vendors:(accB[acc]||accA[acc]||{}).vendors||{}});
+  });
+  movers.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
+
+  const moverLines=movers.slice(0,18).map(m=>{
+    const topV=Object.entries(m.vendors).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,3)
+      .map(([v,amt])=>`${v} (${fmt(amt)})`).join(', ');
+    return `  ${m.acc}: prev ${fmtAbs(m.vA)} → curr ${fmtAbs(m.vB)}, delta ${fmt(m.delta)}${topV?' | top: '+topV:''}`;
+  }).join('\n')||'  No significant account-level movements.';
+
+  return `You are a financial analyst writing bullet-point takeaways for a CXM Group executive slide deck.
+
+Entity: ${entLabel} | Comparing ${lA} → ${lB}
+
+FINANCIAL SUMMARY:
+${summaryLines}
+
+TOP ACCOUNT MOVEMENTS (${lA} → ${lB}, sorted by absolute delta):
+${moverLines}
+
+TASK: Write takeaways in EXACTLY this format (no intro, no preamble):
+
+- Category Name
+  • ${shortMon} – What happened – $amount (${entTag})
+
+Rules:
+1. Group bullets under categories: Tech Fees, Compensation, Marketing, G&A, Professional Services, Revenue (only include categories with noteworthy movements)
+2. Format: Month abbreviation – concise description (max 8 words) – dollar amount in $XXXk format – (entity tag)
+3. Use ${entTag} as entity tag; if group slide, tag the specific sub-entity (CXMT/CXMD/CXMP/CXMS) when identifiable from vendors/accounts
+4. Focus on: one-offs, corrections (negative = reversal/credit), seasonal payments, large variances
+5. Skip items with delta <$5k
+6. Max 10 bullets across all categories; prioritize largest absolute deltas
+7. Dollar amounts: use $Xk or $X.Xk notation (e.g. $42.5k, $270k, $38k)
+8. Start output directly with the first "- Category" line
+
+Example output:
+- Tech Fees
+  • Dec – Rackspace EOY correction – -$42.5k (CXMD)
+  • Dec – PrimeXM monthly fee – +$38k (CXMT)
+- Compensation
+  • Dec – Year-end salary bonus – +$270k (CXMT/CXMD)
+- Marketing
+  • Dec – IB Office Seminar correction – -$52.7k (CXMD)`;
+}
+
+async function autoGenerateTakeaways(idx){
+  const btn=document.getElementById('ai-btn-'+idx);
+  _closeAIDialogs();
+
+  let apiKey=await _getAnthropicKey();
+  if(!apiKey){_showKeyDialog(idx);return;}
+
+  if(!MLABELS.length){
+    alert('No data imported. Please import financial data first.');
+    return;
+  }
+
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="ai-spin"></span> Generating…';}
+
+  try{
+    const def=SLIDE_DEFS[idx];
+    const ek=def.ek||_presSkToEk(def.sk||'');
+    const mA=PRES_STATE.monthA,mB=PRES_STATE.monthB;
+    const lA=MONTH_NAMES_DISPLAY[mA]||'—',lB=MONTH_NAMES_DISPLAY[mB]||'—';
+    const prompt=_buildAIPrompt(ek,mA,mB,lA,lB);
+
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-calls':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1024,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+
+    if(!resp.ok){
+      const err=await resp.json().catch(()=>({}));
+      if(resp.status===401){
+        await _dbDel('anthropicKey');
+        alert('Invalid API key. Please re-enter your Anthropic key.');
+        if(btn){btn.disabled=false;btn.innerHTML='✨ Auto-generate';}
+        _showKeyDialog(idx);
+        return;
+      }
+      throw new Error((err.error&&err.error.message)||'API error '+resp.status);
+    }
+
+    const data=await resp.json();
+    const text=((data.content||[]).find(c=>c.type==='text')||{}).text||'';
+    if(!text.trim())throw new Error('Empty response from model');
+
+    _aiPending[idx]=text.trim();
+    _showActionDialog(idx,text.trim());
+
+  }catch(e){
+    console.error('autoGenerateTakeaways error:',e);
+    alert('Failed to generate takeaways:\n'+e.message);
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML='✨ Auto-generate';}
   }
 }
 </script>
