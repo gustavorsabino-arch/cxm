@@ -2517,6 +2517,7 @@ const SLIDE_DEFS = [
   {type:'exp3-comp', sk:'Direct', grp:'Marketing',  title:'CXMD – Marketing Expenses',     sub:'Last 3 Months Comparison'},
   {type:'exp3-vendor',sk:'Direct',grp:'Tech/Subs',  title:'CXMD – Tech Fees',              sub:'Last 3 Months Comparison'},
   {type:'exp3-comp', sk:'Direct', grp:'G&A',        title:'CXMD – Reimbursements',          sub:'Last 3 Months Comparison'},
+  {type:'end', title:'End'},
 ];
 
 // ── State ──
@@ -2902,6 +2903,27 @@ function _presRenderSlide(idx) {
         <div class="ps-cov-date">${lB}</div>
         <div class="ps-cov-conf">Confidential - Internal Use Only</div>
         <div class="ps-cov-logo">CXM GROUP</div>
+      </div>
+      <div class="ps-cov-right">
+        <div class="ps-cov-grid"></div>
+        <div style="position:absolute;width:480px;height:480px;border-radius:50%;border:1px solid rgba(106,176,76,.1);top:50%;left:50%;transform:translate(-50%,-50%)"></div>
+        <div style="position:absolute;width:320px;height:320px;border-radius:50%;border:1px solid rgba(106,176,76,.14);top:50%;left:50%;transform:translate(-50%,-50%)"></div>
+        <div style="position:absolute;width:140px;height:140px;border-radius:50%;background:rgba(106,176,76,.07);top:50%;left:50%;transform:translate(-50%,-50%)"></div>
+        <div style="position:absolute;bottom:32px;right:32px;font:.55rem/1 var(--mono);color:rgba(255,255,255,.12);letter-spacing:.2em;text-transform:uppercase">${new Date().getFullYear()} CONFIDENTIAL</div>
+      </div>
+    </div>`;
+
+  } else if (def.type === 'end') {
+    html = `<div class="pslide pslide-cover" style="display:flex">
+      <div class="ps-cov-left" style="flex:1;align-items:center;justify-content:center;text-align:center">
+        <div class="ps-left-orb1"></div><div class="ps-left-orb2"></div>
+        <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:18px">
+          <div style="font:.55rem/1 var(--mono);letter-spacing:.25em;text-transform:uppercase;color:rgba(255,255,255,.35)">CXM Group · Financial Presentation</div>
+          <div style="font:700 5rem/1 'DM Sans',sans-serif;color:#fff;letter-spacing:-.04em">END</div>
+          <div style="width:48px;height:2px;background:#6ab04c;border-radius:2px"></div>
+          <div style="font:.6rem/1.5 'DM Mono',monospace;color:rgba(255,255,255,.35);letter-spacing:.08em">CONFIDENTIAL · INTERNAL USE ONLY</div>
+          <div style="margin-top:12px;font:700 .75rem/1 var(--mono);color:rgba(106,176,76,.6);letter-spacing:.2em">CXM GROUP</div>
+        </div>
       </div>
       <div class="ps-cov-right">
         <div class="ps-cov-grid"></div>
