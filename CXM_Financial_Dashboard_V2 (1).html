@@ -4191,7 +4191,7 @@ function _presInitCompChart(def) {
   const datasets = [];
   let pIdx = 0;
   subgroupEntries.forEach(([sg, keys]) => {
-    const vals = mis.map(mi => Math.max(0, keys.reduce((s,k) => s + safeNum((_rk=_resolveExpKey(sk,k)) ? EXP[sk][_rk][mi] : 0), 0)));
+    const vals = mis.map(mi => keys.reduce((s,k) => s + safeNum((_rk=_resolveExpKey(sk,k)) ? EXP[sk][_rk][mi] : 0), 0));
     if (vals.some(v => v > 0)) {
       datasets.push({
         label: sg, data: vals,
@@ -4201,18 +4201,25 @@ function _presInitCompChart(def) {
     }
   });
   // Datalabels: show value + % inside each segment
+  // Precompute true net totals (sum including negatives) for each month
+  const sgTrueTotals = mis.map((_, idx) =>
+    datasets.reduce((s, d) => s + (d.data[idx]||0), 0)
+  );
   const dlConfig = {
     labels: {
       val: {
         display: (ctx) => {
           const v = ctx.dataset.data[ctx.dataIndex]||0;
-          const total = ctx.chart.data.datasets.reduce((s,d)=>s+(d.data[ctx.dataIndex]||0),0);
-          return v > 0 && total > 0 && (v/total) >= 0.06;
+          const absTotal = ctx.chart.data.datasets.reduce((s,d)=>s+Math.abs(d.data[ctx.dataIndex]||0),0);
+          return Math.abs(v) > 0 && absTotal > 0 && (Math.abs(v)/absTotal) >= 0.06;
         },
         formatter: (v, ctx) => {
-          const total = ctx.chart.data.datasets.reduce((s,d)=>s+(d.data[ctx.dataIndex]||0),0);
-          const pct = total > 0 ? Math.round(v/total*100) : 0;
-          const vStr = v >= 1e6 ? '$'+(v/1e6).toFixed(1)+'M' : v >= 1000 ? '$'+Math.round(v/1000)+'K' : '$'+Math.round(v);
+          const absTotal = ctx.chart.data.datasets.reduce((s,d)=>s+Math.abs(d.data[ctx.dataIndex]||0),0);
+          const pct = absTotal > 0 ? Math.round(Math.abs(v)/absTotal*100) : 0;
+          const abs = Math.abs(v);
+          const prefix = v < 0 ? '($' : '$';
+          const suffix = v < 0 ? ')' : '';
+          const vStr = abs >= 1e6 ? prefix+(abs/1e6).toFixed(1)+'M'+suffix : abs >= 1000 ? prefix+Math.round(abs/1000)+'K'+suffix : prefix+Math.round(abs)+suffix;
           return vStr + '\n' + pct + '%';
         },
         color: '#fff', font: {size:9, weight:'700', family:"'DM Mono',monospace"},
@@ -4230,8 +4237,11 @@ function _presInitCompChart(def) {
           return true;
         },
         formatter: (_v, ctx) => {
-          const total = ctx.chart.data.datasets.reduce((s,d)=>s+(d.data[ctx.dataIndex]||0),0);
-          return total >= 1e6 ? '$'+(total/1e6).toFixed(2)+'M' : total >= 1000 ? '$'+Math.round(total/1000)+'K' : '$'+Math.round(total);
+          const total = sgTrueTotals[ctx.dataIndex];
+          const abs = Math.abs(total);
+          const prefix = total < 0 ? '($' : '$';
+          const suffix = total < 0 ? ')' : '';
+          return abs >= 1e6 ? prefix+(abs/1e6).toFixed(2)+'M'+suffix : abs >= 1000 ? prefix+Math.round(abs/1000)+'K'+suffix : prefix+Math.round(abs)+suffix;
         },
         color: '#1a2030', font: {size:11, weight:'800', family:"'DM Mono',monospace"},
         anchor: 'end', align: 'end', offset: 6, clamp: true
