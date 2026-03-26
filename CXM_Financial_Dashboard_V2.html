@@ -4593,27 +4593,22 @@ function _positionAIDialog(d,btn){
   document.body.appendChild(d);
   const r=btn.getBoundingClientRect();
   const vw=window.innerWidth,vh=window.innerHeight;
-  // Use measured or estimated height
-  const dh=d.offsetHeight||180;
-  const dw=d.offsetWidth||260;
-  // Prefer below button; fall back to above if not enough space
-  const spaceBelow=vh-r.bottom-10;
-  const spaceAbove=r.top-10;
-  if(spaceBelow>=dh||spaceBelow>=spaceAbove){
-    d.style.top=(r.bottom+6)+'px';d.style.bottom='auto';
+  const dh=d.offsetHeight||160;
+  // Vertical: below button if space, otherwise above
+  if(r.bottom+dh+10<=vh){
+    d.style.top=(r.bottom+6)+'px';
   }else{
-    d.style.top=Math.max(8,r.top-dh-6)+'px';d.style.bottom='auto';
+    d.style.top=Math.max(8,r.top-dh-6)+'px';
   }
-  // Align right edge to button right, clamped
-  const left=Math.min(Math.max(8,r.right-dw),vw-dw-8);
-  d.style.left=left+'px';d.style.right='auto';
+  d.style.bottom='auto';
+  // Horizontal: anchor from right so dialog never goes off-screen right
+  d.style.right=Math.max(8,vw-r.right)+'px';
+  d.style.left='auto';
 }
 
 function _showKeyDialog(idx){
-  console.log('[AI] _showKeyDialog called, idx='+idx);
   _closeAIDialogs();
   const btn=document.getElementById('ai-btn-'+idx);
-  console.log('[AI] _showKeyDialog btn:', btn);
   if(!btn)return;
   const d=document.createElement('div');
   d.className='ai-dialog';d.id='ai-dialog-'+idx;
@@ -4624,9 +4619,7 @@ function _showKeyDialog(idx){
       <button class="ai-dbtn ok" onclick="_confirmAIKey(${idx})">Save</button>
       <button class="ai-dbtn cancel" onclick="_closeAIDialogs()">✕</button>
     </div>`;
-  console.log('[AI] dialog el created, appending to body via _positionAIDialog');
   _positionAIDialog(d,btn);
-  console.log('[AI] dialog position:', d.style.top, d.style.left, 'offsetHeight:', d.offsetHeight);
   _attachAIOutside(d);
   setTimeout(()=>{
     const inp=document.getElementById('ai-key-inp-'+idx);
@@ -4778,16 +4771,13 @@ Example output:
 }
 
 async function autoGenerateTakeaways(idx){
-  console.log('[AI] autoGenerateTakeaways called, idx='+idx);
   const btn=document.getElementById('ai-btn-'+idx);
-  console.log('[AI] btn element:', btn);
   // If we're already showing a dialog for this slide, close it and stop (toggle behaviour)
   const existing=document.getElementById('ai-dialog-'+idx);
   if(existing){_closeAIDialogs();return;}
   _closeAIDialogs();
 
   let apiKey=await _getAnthropicKey();
-  console.log('[AI] apiKey present:', !!apiKey);
   if(!apiKey){_showKeyDialog(idx);return;}
 
   if(!MLABELS.length){
