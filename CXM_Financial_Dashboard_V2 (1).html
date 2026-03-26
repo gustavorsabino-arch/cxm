@@ -4279,20 +4279,31 @@ function _presInitVendorChart(def) {
         vendorMap[display][idx] += t.amount;
       });
   });
+  // True net totals from ALL vendors (before any slicing) — used for the bar total label
+  const trueTotals = mis.map((_, idx) =>
+    Object.values(vendorMap).reduce((s, vals) => s + (vals[idx]||0), 0)
+  );
   const allVendors = Object.entries(vendorMap)
     .map(([name, vals]) => ({name, vals}))
     .filter(v => v.vals.some(x => x !== 0));
-  // Sort: positive vendors first (by last-month value desc), then negatives (by abs desc)
-  const posV = allVendors.filter(v => (v.vals[v.vals.length-1]||0) >= 0)
-    .sort((a,b) => (b.vals[b.vals.length-1]||0) - (a.vals[a.vals.length-1]||0));
-  const negV = allVendors.filter(v => (v.vals[v.vals.length-1]||0) < 0)
-    .sort((a,b) => Math.abs(b.vals[b.vals.length-1]||0) - Math.abs(a.vals[a.vals.length-1]||0));
-  const vendors = [...posV, ...negV];
+  // Show top positive vendors (sorted by last-month value desc)
+  const vendors = allVendors.sort((a,b) => (b.vals[b.vals.length-1]||0) - (a.vals[a.vals.length-1]||0));
   const datasets = vendors.slice(0, 18).map((v, i) => ({
     label: v.name, data: v.vals,
     backgroundColor: PALETTES[i % PALETTES.length],
     stack: 's', barPercentage: .65, categoryPercentage: .75
   }));
+  // Custom datalabels: segment values inside bars + TRUE net total above
+  const dlSeg = _dlPerSegment(true);
+  dlSeg.labels.total.formatter = (_v, ctx) => {
+    const t = trueTotals[ctx.dataIndex];
+    if (!t) return '';
+    const abs = Math.abs(t);
+    const prefix = t < 0 ? '-$' : '$';
+    if (abs >= 1000000) return prefix+(abs/1000000).toFixed(1)+'M';
+    if (abs >= 1000)    return prefix+Math.round(abs/1000)+'K';
+    return prefix+Math.round(abs);
+  };
   PRES_STATE.charts['vendor'] = new Chart(ctx, {
     plugins: [ChartDataLabels],
     type: 'bar', data: {labels, datasets},
@@ -4302,7 +4313,7 @@ function _presInitVendorChart(def) {
       plugins: {
         legend: {position:'bottom', labels:{font:{size:9}, usePointStyle:true, color:'#444', padding:8, boxWidth:7}},
         tooltip: TT,
-        datalabels: _dlPerSegment(true)
+        datalabels: dlSeg
       },
       scales: {
         x: {stacked:true, grid:{display:false}, border:{display:false}, ticks:{color:'#2a3040',font:{size:11,weight:'700'},maxRotation:0}},
