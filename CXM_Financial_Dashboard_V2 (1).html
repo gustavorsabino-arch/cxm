@@ -3143,15 +3143,6 @@ function _presRenderSlide(idx) {
 
   document.getElementById('pres-slide-wrap').innerHTML = html;
 
-  // Attach AI button listener (more reliable than onclick attribute in scaled/transformed context)
-  const _aiBtn = document.getElementById('ai-btn-' + idx);
-  if (_aiBtn) {
-    _aiBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      autoGenerateTakeaways(idx);
-    });
-  }
-
   // Init charts after DOM update
   if (!noData) {
     if      (def.type==='rev-chart')       _presInitRevChart();
@@ -4787,7 +4778,6 @@ Example output:
 }
 
 async function autoGenerateTakeaways(idx){
-  alert('[AI-DEBUG] autoGenerateTakeaways foi chamada! idx=' + idx);
   console.log('[AI] autoGenerateTakeaways called, idx='+idx);
   const btn=document.getElementById('ai-btn-'+idx);
   console.log('[AI] btn element:', btn);
@@ -4856,15 +4846,14 @@ async function autoGenerateTakeaways(idx){
   }
 }
 
-// ── DEBUG HELPERS (remove after fix confirmed) ──
-// Capture-phase global click logger — fires before any stopPropagation
-document.addEventListener('click', function _aiClickDebug(e) {
+// ── Delegated AI button handler (capture phase, survives slide re-renders) ──
+document.addEventListener('click', function(e) {
   const btn = e.target.closest('.ps-ai-btn');
-  if (btn) {
-    console.log('[AI-DEBUG] ps-ai-btn CLICK CAPTURED — id:', btn.id, '| target:', e.target.tagName, e.target.className);
-    console.log('[AI-DEBUG] btn listeners via getEventListeners (if Chrome):', typeof getEventListeners !== 'undefined' ? getEventListeners(btn) : 'N/A');
-  }
-}, true); // true = capture phase, beats stopPropagation
+  if (!btn) return;
+  e.stopPropagation();
+  const idx = parseInt((btn.id || '').replace('ai-btn-', ''));
+  if (!isNaN(idx)) autoGenerateTakeaways(idx);
+}, true);
 </script>
 
 
