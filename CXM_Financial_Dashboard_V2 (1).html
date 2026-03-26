@@ -4576,10 +4576,108 @@ async function exportPresAsPPTX() {
 // AI AUTO-GENERATE TAKEAWAYS
 // ═══════════════════════════════════════════════════
 
-async function _getAnthropicKey(){try{return await _dbGet('anthropicKey');}catch(e){return null;}}
-async function _saveAnthropicKey(k){try{await _dbPut('anthropicKey',k);}catch(e){}}
+// ═══════════════════════════════════════════════════
+// LOCAL AUTO-GENERATE TAKEAWAYS (no API required)
+// ═══════════════════════════════════════════════════
 
-function _closeAIDialogs(){document.querySelectorAll('.ai-dialog').forEach(d=>d.remove());_aiOutsideOff();}
+function _generateTakeawaysLocal(ek,mA,mB,lA,lB){
+  const fmtK=v=>{
+    if(v===0)return '$0';
+    const abs=Math.abs(v),sign=v>0?'+':'-';
+    if(abs>=1e6)return sign+'$'+(Math.round(abs/1e5)/10).toFixed(1).replace('.0','')+'M';
+    if(abs>=10000)return sign+'$'+Math.round(abs/1000)+'k';
+    return sign+'$'+(Math.round(abs/100)/10).toFixed(1).replace('.0','')+'k';
+  };
+  const shortMon=(lB||'').split(' ')[0].substring(0,3);
+  const ETAG={group:'GROUP',trading:'CXMT',direct:'CXMD',prime:'CXMP',securities:'CXMS'};
+  const ENTITY_TAGS={'Trading':'CXMT','Direct':'CXMD','CXM Prime':'CXMP','Securities':'CXMS'};
+  const entTag=ETAG[ek]||'CXM';
+  const ekName=ek==='group'?null:(ENTITY_KEY[ek]||null);
+  const skArr=srcKeysFor(ek);
+  const plB=_computePL(ek,mB),plA=_computePL(ek,mA);
+
+  const cats=[
+    {name:'Revenue',          grp:null,             vA:plA.netRev,  vB:plB.netRev},
+    {name:'Tech Fees',        grp:'Tech/Subs',       vA:getGrpVal('Tech/Subs',skArr,mA),  vB:getGrpVal('Tech/Subs',skArr,mB)},
+    {name:'PSP Fees',         grp:'PSP Fees',        vA:getGrpVal('PSP Fees',skArr,mA),   vB:getGrpVal('PSP Fees',skArr,mB)},
+    {name:'Compensation',     grp:'Compensation',    vA:plA.comp,    vB:plB.comp},
+    {name:'Marketing',        grp:'Marketing',       vA:plA.mkt,     vB:plB.mkt},
+    {name:'Professional Svc', grp:'Professional Svc',vA:plA.profSvc, vB:plB.profSvc},
+    {name:'G&A',              grp:'G&A',             vA:plA.ga,      vB:plB.ga},
+  ].map(c=>({...c,delta:c.vB-c.vA}))
+   .filter(c=>Math.abs(c.delta)>=5000)
+   .sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta))
+   .slice(0,6);
+
+  if(!cats.length)return '(No significant MoM movements — all deltas below $5k)';
+
+  const getTxns=mi=>TRANSACTIONS.filter(t=>{
+    if(ekName&&t.entity!==ekName)return false;
+    return txnInMonth(t,mi);
+  });
+  const txnsB=getTxns(mB),txnsA=getTxns(mA);
+
+  const getMovers=grp=>{
+    if(!grp)return[];
+    const tB=txnsB.filter(t=>txnMatchesGroup(t,grp));
+    const tA=txnsA.filter(t=>txnMatchesGroup(t,grp));
+    const agg=txns=>{
+      const m={};
+      txns.forEach(t=>{
+        const k=((t.vendor||t.memo||'').trim()||(t.account_name||t.account||'').split(':').pop().trim()||'Unknown').substring(0,40);
+        if(!m[k])m[k]={total:0,entity:t.entity||''};
+        m[k].total+=(t.amount||0);
+      });
+      return m;
+    };
+    const accB=agg(tB),accA=agg(tA);
+    const all=new Set([...Object.keys(accB),...Object.keys(accA)]);
+    const movers=[];
+    all.forEach(k=>{
+      const vB=(accB[k]||{}).total||0,vA=(accA[k]||{}).total||0,delta=vB-vA;
+      if(Math.abs(delta)>=3000)movers.push({key:k,delta,entity:(accB[k]||accA[k]||{}).entity||''});
+    });
+    return movers.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)).slice(0,3);
+  };
+
+  const lines=[];
+  cats.forEach(cat=>{
+    const movers=getMovers(cat.grp);
+    lines.push(`- ${cat.name}`);
+    if(movers.length){
+      movers.forEach(m=>{
+        const tag=(ek==='group'&&m.entity)?(ENTITY_TAGS[m.entity]||entTag):entTag;
+        lines.push(`  • ${shortMon} – ${m.key} – ${fmtK(m.delta)} (${tag})`);
+      });
+    }else{
+      lines.push(`  • ${shortMon} – Net change – ${fmtK(cat.delta)} (${entTag})`);
+    }
+  });
+  return lines.join('\n');
+}
+
+function autoGenerateTakeaways(idx){
+  const btn=document.getElementById('ai-btn-'+idx);
+  const existing=document.getElementById('ai-dialog-'+idx);
+  if(existing){_closeAIDialogs();return;}
+  _closeAIDialogs();
+  if(!MLABELS.length){alert('No data imported. Please import financial data first.');return;}
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="ai-spin"></span> Generating…';}
+  try{
+    const def=SLIDE_DEFS[idx];
+    const ek=def.ek||_presSkToEk(def.sk||'');
+    const mA=PRES_STATE.monthA,mB=PRES_STATE.monthB;
+    const lA=MONTH_NAMES_DISPLAY[mA]||'—',lB=MONTH_NAMES_DISPLAY[mB]||'—';
+    const text=_generateTakeawaysLocal(ek,mA,mB,lA,lB);
+    _aiPending[idx]=text;
+    _showActionDialog(idx,text);
+  }catch(e){
+    console.error('autoGenerateTakeaways error:',e);
+    alert('Failed to generate takeaways:\n'+e.message);
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML='✨ Auto-generate';}
+  }
+}
 
 let _aiOutsideOff=()=>{};
 function _attachAIOutside(d){
@@ -4606,36 +4704,6 @@ function _positionAIDialog(d,btn){
   d.style.left='auto';
 }
 
-function _showKeyDialog(idx){
-  _closeAIDialogs();
-  const btn=document.getElementById('ai-btn-'+idx);
-  if(!btn)return;
-  const d=document.createElement('div');
-  d.className='ai-dialog';d.id='ai-dialog-'+idx;
-  d.innerHTML=`<div class="ai-dialog-title">Anthropic API Key</div>
-    <div class="ai-dialog-msg">Enter your key to enable AI-generated takeaways. Stored locally in your browser.</div>
-    <div class="ai-dialog-row">
-      <input type="password" id="ai-key-inp-${idx}" placeholder="sk-ant-..." autocomplete="off">
-      <button class="ai-dbtn ok" onclick="_confirmAIKey(${idx})">Save</button>
-      <button class="ai-dbtn cancel" onclick="_closeAIDialogs()">✕</button>
-    </div>`;
-  _positionAIDialog(d,btn);
-  _attachAIOutside(d);
-  setTimeout(()=>{
-    const inp=document.getElementById('ai-key-inp-'+idx);
-    if(inp){inp.focus();inp.addEventListener('keydown',e=>{if(e.key==='Enter')_confirmAIKey(idx);});}
-  },30);
-}
-
-async function _confirmAIKey(idx){
-  const inp=document.getElementById('ai-key-inp-'+idx);
-  if(!inp)return;
-  const key=inp.value.trim();
-  if(!key)return;
-  await _saveAnthropicKey(key);
-  _closeAIDialogs();
-  autoGenerateTakeaways(idx);
-}
 
 let _aiPending={};
 
@@ -4675,171 +4743,6 @@ function _applyTakeaway(idx,text,mode){
   _debouncedSaveTakeaways();
 }
 
-function _buildAIPrompt(ek,mA,mB,lA,lB){
-  const fmt=v=>v===0?'$0':(v<0?'-$'+Math.abs(Math.round(v/100)/10)+'k':'+$'+(Math.round(v/100)/10)+'k');
-  const fmtAbs=v=>'$'+(Math.round(Math.abs(v)/100)/10)+'k';
-  const plB=_computePL(ek,mB),plA=_computePL(ek,mA);
-  const skArr=srcKeysFor(ek);
-  const entTagMap={group:'GROUP',trading:'CXMT',direct:'CXMD',prime:'CXMP',securities:'CXMS'};
-  const entTag=entTagMap[ek]||'CXM';
-  const entLabel={group:'CXM Group',trading:'CXM Trading',direct:'CXM Direct',prime:'CXM Prime',securities:'CXM Securities'}[ek]||'CXM Group';
-  const shortMon=(lB||'').split(' ')[0]||lB;
-
-  const cats=[
-    {n:'Revenue',         vA:plA.netRev,    vB:plB.netRev},
-    {n:'Tech Fees (COGS)',vA:getGrpVal('Tech/Subs',skArr,mA),vB:getGrpVal('Tech/Subs',skArr,mB)},
-    {n:'PSP Fees',        vA:getGrpVal('PSP Fees',skArr,mA), vB:getGrpVal('PSP Fees',skArr,mB)},
-    {n:'Compensation',    vA:plA.comp,      vB:plB.comp},
-    {n:'Marketing',       vA:plA.mkt,       vB:plB.mkt},
-    {n:'Professional Svc',vA:plA.profSvc,   vB:plB.profSvc},
-    {n:'G&A',             vA:plA.ga,        vB:plB.ga},
-    {n:'Net Income',      vA:plA.netProfit, vB:plB.netProfit},
-  ].map(c=>({...c,d:c.vB-c.vA}));
-
-  const summaryLines=cats.map(c=>{
-    const pct=c.vA!==0?' ('+(c.d/Math.abs(c.vA)*100).toFixed(0)+'% MoM)':'';
-    return `  ${c.n}: ${fmtAbs(c.vB)} | delta ${fmt(c.d)}${pct}`;
-  }).join('\n');
-
-  // Aggregate transactions by account for each month
-  const ekName=ek==='group'?null:(ENTITY_KEY[ek]||null);
-  const getTxns=mi=>TRANSACTIONS.filter(t=>{
-    if(ekName&&t.entity!==ekName)return false;
-    return txnInMonth(t,mi);
-  });
-  const txnsB=getTxns(mB),txnsA=getTxns(mA);
-
-  const aggAcc=txns=>{
-    const m={};
-    txns.forEach(t=>{
-      const acc=(t.account_name||t.account||'Unknown').split(':').pop().trim();
-      if(!m[acc])m[acc]={total:0,vendors:{}};
-      m[acc].total+=(t.amount||0);
-      const v=(t.vendor||t.memo||'').trim().substring(0,40);
-      if(v)m[acc].vendors[v]=(m[acc].vendors[v]||0)+(t.amount||0);
-    });
-    return m;
-  };
-  const accB=aggAcc(txnsB),accA=aggAcc(txnsA);
-  const allAccs=new Set([...Object.keys(accB),...Object.keys(accA)]);
-  const movers=[];
-  allAccs.forEach(acc=>{
-    const vB=(accB[acc]||{}).total||0,vA=(accA[acc]||{}).total||0,delta=vB-vA;
-    if(Math.abs(delta)>=5000)movers.push({acc,vA,vB,delta,vendors:(accB[acc]||accA[acc]||{}).vendors||{}});
-  });
-  movers.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
-
-  const moverLines=movers.slice(0,18).map(m=>{
-    const topV=Object.entries(m.vendors).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,3)
-      .map(([v,amt])=>`${v} (${fmt(amt)})`).join(', ');
-    return `  ${m.acc}: prev ${fmtAbs(m.vA)} → curr ${fmtAbs(m.vB)}, delta ${fmt(m.delta)}${topV?' | top: '+topV:''}`;
-  }).join('\n')||'  No significant account-level movements.';
-
-  return `You are a financial analyst writing bullet-point takeaways for a CXM Group executive slide deck.
-
-Entity: ${entLabel} | Comparing ${lA} → ${lB}
-
-FINANCIAL SUMMARY:
-${summaryLines}
-
-TOP ACCOUNT MOVEMENTS (${lA} → ${lB}, sorted by absolute delta):
-${moverLines}
-
-TASK: Write takeaways in EXACTLY this format (no intro, no preamble):
-
-- Category Name
-  • ${shortMon} – What happened – $amount (${entTag})
-
-Rules:
-1. Group bullets under categories: Tech Fees, Compensation, Marketing, G&A, Professional Services, Revenue (only include categories with noteworthy movements)
-2. Format: Month abbreviation – concise description (max 8 words) – dollar amount in $XXXk format – (entity tag)
-3. Use ${entTag} as entity tag; if group slide, tag the specific sub-entity (CXMT/CXMD/CXMP/CXMS) when identifiable from vendors/accounts
-4. Focus on: one-offs, corrections (negative = reversal/credit), seasonal payments, large variances
-5. Skip items with delta <$5k
-6. Max 10 bullets across all categories; prioritize largest absolute deltas
-7. Dollar amounts: use $Xk or $X.Xk notation (e.g. $42.5k, $270k, $38k)
-8. Start output directly with the first "- Category" line
-
-Example output:
-- Tech Fees
-  • Dec – Rackspace EOY correction – -$42.5k (CXMD)
-  • Dec – PrimeXM monthly fee – +$38k (CXMT)
-- Compensation
-  • Dec – Year-end salary bonus – +$270k (CXMT/CXMD)
-- Marketing
-  • Dec – IB Office Seminar correction – -$52.7k (CXMD)`;
-}
-
-async function autoGenerateTakeaways(idx){
-  const btn=document.getElementById('ai-btn-'+idx);
-  // If we're already showing a dialog for this slide, close it and stop (toggle behaviour)
-  const existing=document.getElementById('ai-dialog-'+idx);
-  if(existing){_closeAIDialogs();return;}
-  _closeAIDialogs();
-
-  let apiKey=await _getAnthropicKey();
-  if(!apiKey){_showKeyDialog(idx);return;}
-
-  if(!MLABELS.length){
-    alert('No data imported. Please import financial data first.');
-    return;
-  }
-
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="ai-spin"></span> Generating…';}
-
-  try{
-    const def=SLIDE_DEFS[idx];
-    const ek=def.ek||_presSkToEk(def.sk||'');
-    const mA=PRES_STATE.monthA,mB=PRES_STATE.monthB;
-    const lA=MONTH_NAMES_DISPLAY[mA]||'—',lB=MONTH_NAMES_DISPLAY[mB]||'—';
-    const prompt=_buildAIPrompt(ek,mA,mB,lA,lB);
-
-    const resp=await fetch('/v1/messages',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'x-api-key':apiKey,
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-direct-browser-calls':'true'
-      },
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1024,
-        messages:[{role:'user',content:prompt}]
-      })
-    });
-
-    if(!resp.ok){
-      const err=await resp.json().catch(()=>({}));
-      if(resp.status===401){
-        await _dbDel('anthropicKey');
-        alert('Invalid API key. Please re-enter your Anthropic key.');
-        if(btn){btn.disabled=false;btn.innerHTML='✨ Auto-generate';}
-        _showKeyDialog(idx);
-        return;
-      }
-      throw new Error((err.error&&err.error.message)||'API error '+resp.status);
-    }
-
-    const data=await resp.json();
-    const text=((data.content||[]).find(c=>c.type==='text')||{}).text||'';
-    if(!text.trim())throw new Error('Empty response from model');
-
-    _aiPending[idx]=text.trim();
-    _showActionDialog(idx,text.trim());
-
-  }catch(e){
-    console.error('autoGenerateTakeaways error:',e);
-    const isCORS = e.message==='Failed to fetch' || e.message.includes('CORS') || e.message.includes('NetworkError');
-    if(isCORS && location.protocol==='file:'){
-      alert('CORS error: the Anthropic API cannot be called from a file:// URL.\n\nServe the file via a local HTTP server:\n  python3 -m http.server 8080\n\nThen open: http://localhost:8080/'+location.pathname.split('/').pop());
-    } else {
-      alert('Failed to generate takeaways:\n'+e.message);
-    }
-  }finally{
-    if(btn){btn.disabled=false;btn.innerHTML='✨ Auto-generate';}
-  }
-}
 
 // ── Delegated AI button handler (capture phase, survives slide re-renders) ──
 document.addEventListener('click', function(e) {
