@@ -3473,7 +3473,7 @@ function _presInitExp3Chart(def) {
   const isStacked = def.grp === 'opex';
   let datasets = [];
   if (isStacked) {
-    const grps = [['Compensation','#1e5ab4'],['Marketing','#e07428'],['G&A','#7c3be0'],['Professional Svc','#c0392b'],['Tech Fees (COGS)','#00a878'],['PSP Fees','#059669']];
+    const grps = [['Compensation','#1e5ab4'],['Marketing','#e07428'],['G&A','#7c3be0'],['Professional Svc','#c0392b'],['Tech/Subs','#00a878'],['PSP Fees','#059669']];
     grps.forEach(([g,col]) => {
       const data = mis.map(mi=>getGrpVal(g,sk,mi));
       if (data.some(v=>v!==0)) datasets.push({label:g, data, backgroundColor:col, stack:'s',
