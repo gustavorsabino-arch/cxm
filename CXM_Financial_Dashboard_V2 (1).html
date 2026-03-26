@@ -372,7 +372,7 @@ footer{text-align:center;font:.61rem/1 var(--mono);color:var(--muted);padding:18
 .ps-ai-btn:hover:not(:disabled){background:rgba(106,176,76,.18);border-color:#6ab04c;}.ps-ai-btn:disabled{opacity:.45;cursor:not-allowed;}
 .ps-ai-btn .ai-spin{display:inline-block;width:9px;height:9px;border:1.5px solid rgba(61,139,46,.25);border-top-color:#3d8b2e;border-radius:50%;animation:ai-spin .7s linear infinite;}
 @keyframes ai-spin{to{transform:rotate(360deg);}}
-.ai-dialog{position:absolute;bottom:calc(100% + 4px);right:0;background:#fff;border:1px solid #cdd6e5;border-radius:9px;box-shadow:0 4px 22px rgba(13,31,60,.16);padding:13px 15px;min-width:230px;max-width:300px;z-index:500;}
+.ai-dialog{position:fixed;background:#fff;border:1px solid #cdd6e5;border-radius:9px;box-shadow:0 6px 28px rgba(13,31,60,.2);padding:13px 15px;min-width:240px;max-width:300px;z-index:9999;}
 .ai-dialog-title{font:.63rem/1 var(--mono);font-weight:700;color:#0d1f3c;margin-bottom:7px;}
 .ai-dialog-msg{font:.58rem/1.45 var(--mono);color:#6b87a4;margin-top:5px;}
 .ai-dialog-row{display:flex;align-items:center;gap:6px;margin-top:8px;}
@@ -384,7 +384,6 @@ footer{text-align:center;font:.61rem/1 var(--mono);color:var(--muted);padding:18
 .ai-dbtn.cancel{background:transparent;border:1px solid #cdd6e5 !important;color:#6b87a4;}.ai-dbtn.cancel:hover{border-color:#c0392b !important;color:#c0392b;}
 .ai-action-btns{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;}
 .ai-action-btns .ai-dbtn{flex:1;text-align:center;}
-.ps-ta-panel{position:relative;}
 </style>
 </head>
 <body>
@@ -4580,14 +4579,40 @@ async function exportPresAsPPTX() {
 async function _getAnthropicKey(){try{return await _dbGet('anthropicKey');}catch(e){return null;}}
 async function _saveAnthropicKey(k){try{await _dbPut('anthropicKey',k);}catch(e){}}
 
-function _closeAIDialogs(){document.querySelectorAll('.ai-dialog').forEach(d=>d.remove());}
+function _closeAIDialogs(){document.querySelectorAll('.ai-dialog').forEach(d=>d.remove());_aiOutsideOff();}
+
+let _aiOutsideOff=()=>{};
+function _attachAIOutside(d){
+  _aiOutsideOff();
+  const handler=e=>{if(!d.contains(e.target)&&!e.target.closest('.ps-ai-btn')){_closeAIDialogs();}};
+  setTimeout(()=>document.addEventListener('mousedown',handler),10);
+  _aiOutsideOff=()=>{document.removeEventListener('mousedown',handler);_aiOutsideOff=()=>{};};
+}
+
+function _positionAIDialog(d,btn){
+  document.body.appendChild(d);
+  const r=btn.getBoundingClientRect();
+  const vw=window.innerWidth,vh=window.innerHeight;
+  // Use measured or estimated height
+  const dh=d.offsetHeight||180;
+  const dw=d.offsetWidth||260;
+  // Prefer below button; fall back to above if not enough space
+  const spaceBelow=vh-r.bottom-10;
+  const spaceAbove=r.top-10;
+  if(spaceBelow>=dh||spaceBelow>=spaceAbove){
+    d.style.top=(r.bottom+6)+'px';d.style.bottom='auto';
+  }else{
+    d.style.top=Math.max(8,r.top-dh-6)+'px';d.style.bottom='auto';
+  }
+  // Align right edge to button right, clamped
+  const left=Math.min(Math.max(8,r.right-dw),vw-dw-8);
+  d.style.left=left+'px';d.style.right='auto';
+}
 
 function _showKeyDialog(idx){
   _closeAIDialogs();
   const btn=document.getElementById('ai-btn-'+idx);
   if(!btn)return;
-  const panel=btn.closest('.ps-ta-panel');
-  if(!panel)return;
   const d=document.createElement('div');
   d.className='ai-dialog';d.id='ai-dialog-'+idx;
   d.innerHTML=`<div class="ai-dialog-title">Anthropic API Key</div>
@@ -4597,7 +4622,8 @@ function _showKeyDialog(idx){
       <button class="ai-dbtn ok" onclick="_confirmAIKey(${idx})">Save</button>
       <button class="ai-dbtn cancel" onclick="_closeAIDialogs()">✕</button>
     </div>`;
-  panel.appendChild(d);
+  _positionAIDialog(d,btn);
+  _attachAIOutside(d);
   setTimeout(()=>{
     const inp=document.getElementById('ai-key-inp-'+idx);
     if(inp){inp.focus();inp.addEventListener('keydown',e=>{if(e.key==='Enter')_confirmAIKey(idx);});}
@@ -4620,22 +4646,22 @@ function _showActionDialog(idx,text){
   _closeAIDialogs();
   const btn=document.getElementById('ai-btn-'+idx);
   if(!btn)return;
-  const panel=btn.closest('.ps-ta-panel');
-  if(!panel)return;
   const current=(PRES_STATE.takeaways[idx]||'').trim();
   if(!current){_applyTakeaway(idx,text,'replace');return;}
   const preview=text.split('\n').slice(0,4).join('\n')+(text.split('\n').length>4?'\n…':'');
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
   const d=document.createElement('div');
   d.className='ai-dialog';d.id='ai-dialog-'+idx;
   d.innerHTML=`<div class="ai-dialog-title">Takeaways already exist</div>
-    <div class="ai-dialog-msg" style="white-space:pre-wrap;max-height:72px;overflow:hidden;color:#333;font-size:.55rem">${preview.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>
+    <div class="ai-dialog-msg" style="white-space:pre-wrap;max-height:72px;overflow:hidden;color:#333;font-size:.55rem">${esc(preview)}</div>
     <div class="ai-dialog-msg">Replace existing content or append below?</div>
     <div class="ai-action-btns">
       <button class="ai-dbtn replace" onclick="_applyTakeaway(${idx},_aiPending[${idx}],'replace')">Replace</button>
       <button class="ai-dbtn append" onclick="_applyTakeaway(${idx},_aiPending[${idx}],'append')">Append</button>
       <button class="ai-dbtn cancel" onclick="_closeAIDialogs()">Cancel</button>
     </div>`;
-  panel.appendChild(d);
+  _positionAIDialog(d,btn);
+  _attachAIOutside(d);
 }
 
 function _applyTakeaway(idx,text,mode){
@@ -4749,6 +4775,9 @@ Example output:
 
 async function autoGenerateTakeaways(idx){
   const btn=document.getElementById('ai-btn-'+idx);
+  // If we're already showing a dialog for this slide, close it and stop (toggle behaviour)
+  const existing=document.getElementById('ai-dialog-'+idx);
+  if(existing){_closeAIDialogs();return;}
   _closeAIDialogs();
 
   let apiKey=await _getAnthropicKey();
