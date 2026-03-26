@@ -4293,16 +4293,39 @@ function _presInitVendorChart(def) {
     backgroundColor: PALETTES[i % PALETTES.length],
     stack: 's', barPercentage: .65, categoryPercentage: .75
   }));
-  // Custom datalabels: segment values inside bars + TRUE net total above
-  const dlSeg = _dlPerSegment(true);
-  dlSeg.labels.total.formatter = (_v, ctx) => {
-    const t = trueTotals[ctx.dataIndex];
-    if (!t) return '';
-    const abs = Math.abs(t);
-    const prefix = t < 0 ? '-$' : '$';
-    if (abs >= 1000000) return prefix+(abs/1000000).toFixed(1)+'M';
-    if (abs >= 1000)    return prefix+Math.round(abs/1000)+'K';
-    return prefix+Math.round(abs);
+  // Build datalabels config inline so trueTotals is captured directly in closure
+  const dlVendor = {
+    labels: {
+      seg: {
+        display: (ctx) => (ctx.dataset.data[ctx.dataIndex]||0) >= 35000,
+        formatter: _fmtDL,
+        color:'#fff', font:{size:10,weight:'700',family:"'DM Mono',monospace"},
+        anchor:'center', align:'center',
+        textShadowBlur:4, textShadowColor:'rgba(0,0,0,.4)'
+      },
+      total: {
+        display: (ctx) => {
+          const v = ctx.dataset.data[ctx.dataIndex]||0;
+          if (v <= 0) return false;
+          const ds = ctx.chart.data.datasets;
+          for (let j = ctx.datasetIndex+1; j < ds.length; j++) {
+            if ((ds[j].data[ctx.dataIndex]||0) > 0) return false;
+          }
+          return true;
+        },
+        formatter: (_v, ctx) => {
+          const t = trueTotals[ctx.dataIndex];
+          if (t == null) return '';
+          const abs = Math.abs(t);
+          const prefix = t < 0 ? '-$' : '$';
+          if (abs >= 1000000) return prefix+(abs/1000000).toFixed(1)+'M';
+          if (abs >= 1000)    return prefix+Math.round(abs/1000)+'K';
+          return prefix+Math.round(abs);
+        },
+        color:'#1a2030', font:{size:11,weight:'800',family:"'DM Mono',monospace"},
+        anchor:'end', align:'end', offset:6, clamp:true
+      }
+    }
   };
   PRES_STATE.charts['vendor'] = new Chart(ctx, {
     plugins: [ChartDataLabels],
@@ -4313,7 +4336,7 @@ function _presInitVendorChart(def) {
       plugins: {
         legend: {position:'bottom', labels:{font:{size:9}, usePointStyle:true, color:'#444', padding:8, boxWidth:7}},
         tooltip: TT,
-        datalabels: dlSeg
+        datalabels: dlVendor
       },
       scales: {
         x: {stacked:true, grid:{display:false}, border:{display:false}, ticks:{color:'#2a3040',font:{size:11,weight:'700'},maxRotation:0}},
