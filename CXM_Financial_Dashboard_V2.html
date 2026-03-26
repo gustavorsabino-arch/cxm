@@ -4573,12 +4573,13 @@ async function exportPresAsPPTX() {
 }
 
 // ═══════════════════════════════════════════════════
-// AI AUTO-GENERATE TAKEAWAYS
-// ═══════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════
 // LOCAL AUTO-GENERATE TAKEAWAYS (no API required)
 // ═══════════════════════════════════════════════════
+
+function _closeAIDialogs(){
+  document.querySelectorAll('.ai-dialog').forEach(d=>d.remove());
+  if(typeof _aiOutsideOff==='function')_aiOutsideOff();
+}
 
 function _generateTakeawaysLocal(ek,mA,mB,lA,lB){
   const fmtK=v=>{
