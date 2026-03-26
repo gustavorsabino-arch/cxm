@@ -1880,7 +1880,7 @@ function applyPLData(parsed,entityKey){
       const ak=mapped.alt;
       if(!store[ak])store[ak]=new Array(allMonths.length).fill(0);
       else if(store[ak].length<allMonths.length)store[ak]=[...store[ak],...new Array(allMonths.length-store[ak].length).fill(0)];
-      Object.entries(vals).forEach(([mon,v])=>{const idx=getIdx(mon);if(idx>=0)store[ak][idx]=(store[ak][idx]||0)+v;});
+      Object.entries(vals).forEach(([mon,v])=>{const idx=getIdx(mon);if(idx>=0)store[ak][idx]=v;});
     }
   });
   const niKey=ENTITY_NI_KEY[importState.entity];
