@@ -2920,7 +2920,7 @@ function _presRenderSlide(idx) {
             <div class="ps-resizable-main ps-pl-scroll" id="ps-main-${idx}" style="width:var(--ps-col-w,68%)">${tbl}</div>
             <div class="ps-col-divider" onmousedown="initColResize(event)"></div>
             <div class="ps-resizable-ta ps-ta-panel">
-              <div class="ps-ta-toolbar"><div class="ps-ta-label">Key Takeaways</div><button class="ps-ai-btn" id="ai-btn-${idx}" onclick="autoGenerateTakeaways(${idx})">✨ Auto-generate</button></div>
+              <div class="ps-ta-toolbar"><div class="ps-ta-label">Key Takeaways</div><button class="ps-ai-btn" id="ai-btn-${idx}">✨ Auto-generate</button></div>
               <textarea class="ps-ta-input" id="ta-${idx}" placeholder="Add notes here…" oninput="PRES_STATE.takeaways[${idx}]=this.value;_debouncedSaveTakeaways()">${tk}</textarea>
             </div>
           </div>
@@ -2951,7 +2951,7 @@ function _presRenderSlide(idx) {
             <div class="ps-resizable-main ps-yoy-scroll" id="ps-main-${idx}" style="width:var(--ps-col-w,68%)">${tbl}</div>
             <div class="ps-col-divider" onmousedown="initColResize(event)"></div>
             <div class="ps-resizable-ta ps-ta-panel">
-              <div class="ps-ta-toolbar"><div class="ps-ta-label">Key Takeaways</div><button class="ps-ai-btn" id="ai-btn-${idx}" onclick="autoGenerateTakeaways(${idx})">✨ Auto-generate</button></div>
+              <div class="ps-ta-toolbar"><div class="ps-ta-label">Key Takeaways</div><button class="ps-ai-btn" id="ai-btn-${idx}">✨ Auto-generate</button></div>
               <textarea class="ps-ta-input" id="ta-${idx}" placeholder="Add notes here…" oninput="PRES_STATE.takeaways[${idx}]=this.value;_debouncedSaveTakeaways()">${tk}</textarea>
             </div>
           </div>
@@ -3142,6 +3142,15 @@ function _presRenderSlide(idx) {
   }
 
   document.getElementById('pres-slide-wrap').innerHTML = html;
+
+  // Attach AI button listener (more reliable than onclick attribute in scaled/transformed context)
+  const _aiBtn = document.getElementById('ai-btn-' + idx);
+  if (_aiBtn) {
+    _aiBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      autoGenerateTakeaways(idx);
+    });
+  }
 
   // Init charts after DOM update
   if (!noData) {
