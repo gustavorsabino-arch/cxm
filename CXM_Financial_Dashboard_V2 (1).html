@@ -3475,7 +3475,8 @@ function _presInitExp3Chart(def) {
   if (isStacked) {
     const grps = [['Compensation','#1e5ab4'],['Marketing','#e07428'],['G&A','#7c3be0'],['Professional Svc','#c0392b'],['Tech/Subs','#00a878'],['PSP Fees','#059669']];
     grps.forEach(([g,col]) => {
-      const data = mis.map(mi=>getGrpVal(g,sk,mi));
+      // Use Math.abs to match pivot table behavior (expenses may be stored as negative)
+      const data = mis.map(mi=>Math.abs(getGrpVal(g,sk,mi)));
       if (data.some(v=>v!==0)) datasets.push({label:g, data, backgroundColor:col, stack:'s',
         barPercentage:.65, categoryPercentage:.75});
     });
