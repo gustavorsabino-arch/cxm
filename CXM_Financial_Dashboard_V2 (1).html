@@ -4830,7 +4830,12 @@ async function autoGenerateTakeaways(idx){
 
   }catch(e){
     console.error('autoGenerateTakeaways error:',e);
-    alert('Failed to generate takeaways:\n'+e.message);
+    const isCORS = e.message==='Failed to fetch' || e.message.includes('CORS') || e.message.includes('NetworkError');
+    if(isCORS && location.protocol==='file:'){
+      alert('CORS error: the Anthropic API cannot be called from a file:// URL.\n\nServe the file via a local HTTP server:\n  python3 -m http.server 8080\n\nThen open: http://localhost:8080/'+location.pathname.split('/').pop());
+    } else {
+      alert('Failed to generate takeaways:\n'+e.message);
+    }
   }finally{
     if(btn){btn.disabled=false;btn.innerHTML='✨ Auto-generate';}
   }
