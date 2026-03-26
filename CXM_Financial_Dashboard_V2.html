@@ -4794,7 +4794,7 @@ async function autoGenerateTakeaways(idx){
     const lA=MONTH_NAMES_DISPLAY[mA]||'—',lB=MONTH_NAMES_DISPLAY[mB]||'—';
     const prompt=_buildAIPrompt(ek,mA,mB,lA,lB);
 
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+    const resp=await fetch('/v1/messages',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
